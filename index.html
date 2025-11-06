@@ -1,0 +1,677 @@
+import { useState } from 'react';
+import { Calendar, Users, Mail, Plus, Trash2, Send, CheckCircle, Clock, XCircle, Lock, LogOut, Shield } from 'lucide-react';
+import { Button } from './components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card';
+import { Input } from './components/ui/input';
+import { Label } from './components/ui/label';
+import { Textarea } from './components/ui/textarea';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './components/ui/dialog';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './components/ui/table';
+import { Badge } from './components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
+import { toast } from 'sonner@2.0.3';
+import { Toaster } from './components/ui/sonner';
+import { ImageWithFallback } from './components/figma/ImageWithFallback';
+
+interface Guest {
+  id: string;
+  name: string;
+  email: string;
+  status: 'pending' | 'confirmed' | 'declined';
+  addedAt: Date;
+}
+
+interface Event {
+  id: string;
+  name: string;
+  date: string;
+  time: string;
+  location: string;
+  description: string;
+  guests: Guest[];
+}
+
+function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [loginForm, setLoginForm] = useState({ email: '', password: '' });
+  
+  const [events, setEvents] = useState<Event[]>([
+    {
+      id: '1',
+      name: 'বার্ষিক সম্মেলন ২০২৫',
+      date: '2025-12-15',
+      time: '10:00',
+      location: 'ঢাকা কনভেনশন সেন্টার',
+      description: 'আমাদের বার্ষিক সম্মেলনে আপনাকে স্বাগতম',
+      guests: [
+        { id: '1', name: 'রহিম আহমেদ', email: 'rahim@example.com', status: 'confirmed', addedAt: new Date() },
+        { id: '2', name: 'করিম হোসেন', email: 'karim@example.com', status: 'pending', addedAt: new Date() },
+      ]
+    }
+  ]);
+
+  const [selectedEvent, setSelectedEvent] = useState<string | null>(events[0]?.id || null);
+  const [isEventDialogOpen, setIsEventDialogOpen] = useState(false);
+  const [isGuestDialogOpen, setIsGuestDialogOpen] = useState(false);
+  const [emailPreviewOpen, setEmailPreviewOpen] = useState(false);
+  const [previewGuest, setPreviewGuest] = useState<Guest | null>(null);
+
+  // Event form state
+  const [eventForm, setEventForm] = useState({
+    name: '',
+    date: '',
+    time: '',
+    location: '',
+    description: ''
+  });
+
+  // Guest form state
+  const [guestForm, setGuestForm] = useState({
+    name: '',
+    email: ''
+  });
+
+  const currentEvent = events.find(e => e.id === selectedEvent);
+
+  const handleAddEvent = () => {
+    if (!eventForm.name || !eventForm.date || !eventForm.location) {
+      toast.error('অনুগ্রহ করে সব প্রয়োজনীয় তথ্য পূরণ করুন');
+      return;
+    }
+
+    const newEvent: Event = {
+      id: Date.now().toString(),
+      ...eventForm,
+      guests: []
+    };
+
+    setEvents([...events, newEvent]);
+    setSelectedEvent(newEvent.id);
+    setEventForm({ name: '', date: '', time: '', location: '', description: '' });
+    setIsEventDialogOpen(false);
+    toast.success('ইভেন্ট সফলভাবে তৈরি হয়েছে!');
+  };
+
+  const handleAddGuest = () => {
+    if (!guestForm.name || !guestForm.email || !selectedEvent) {
+      toast.error('অনুগ্রহ করে নাম এবং ইমেল পূরণ করুন');
+      return;
+    }
+
+    const newGuest: Guest = {
+      id: Date.now().toString(),
+      ...guestForm,
+      status: 'pending',
+      addedAt: new Date()
+    };
+
+    setEvents(events.map(event => 
+      event.id === selectedEvent 
+        ? { ...event, guests: [...event.guests, newGuest] }
+        : event
+    ));
+
+    // Simulate sending email
+    setTimeout(() => {
+      toast.success(
+        <div className="flex items-center gap-2">
+          <Mail className="h-4 w-4" />
+          <span>{guestForm.name} কে নিশ্চিতকরণ ইমেল পাঠানো হয়েছে</span>
+        </div>
+      );
+    }, 500);
+
+    setGuestForm({ name: '', email: '' });
+    setIsGuestDialogOpen(false);
+  };
+
+  const handleDeleteGuest = (guestId: string) => {
+    if (!selectedEvent) return;
+
+    setEvents(events.map(event => 
+      event.id === selectedEvent 
+        ? { ...event, guests: event.guests.filter(g => g.id !== guestId) }
+        : event
+    ));
+
+    toast.success('অতিথি তালিকা থেকে সরানো হয়েছে');
+  };
+
+  const handleUpdateGuestStatus = (guestId: string, status: Guest['status']) => {
+    if (!selectedEvent) return;
+
+    setEvents(events.map(event => 
+      event.id === selectedEvent 
+        ? { 
+            ...event, 
+            guests: event.guests.map(g => 
+              g.id === guestId ? { ...g, status } : g
+            ) 
+          }
+        : event
+    ));
+
+    const statusText = status === 'confirmed' ? 'নিশ্চিত' : status === 'declined' ? 'প্রত্যাখ্যান' : 'অপেক্ষমাণ';
+    toast.success(`স্ট্যাটাস আপডেট করা হয়েছে: ${statusText}`);
+  };
+
+  const handleResendEmail = (guest: Guest) => {
+    toast.success(
+      <div className="flex items-center gap-2">
+        <Send className="h-4 w-4" />
+        <span>{guest.name} কে পুনরায় ইমেল পাঠানো হয়েছে</span>
+      </div>
+    );
+  };
+
+  const handleDeleteEvent = (eventId: string) => {
+    setEvents(events.filter(e => e.id !== eventId));
+    if (selectedEvent === eventId) {
+      setSelectedEvent(events[0]?.id || null);
+    }
+    toast.success('ইভেন্ট মুছে ফেলা হয়েছে');
+  };
+
+  const getStatusBadge = (status: Guest['status']) => {
+    switch (status) {
+      case 'confirmed':
+        return <Badge className="bg-green-500"><CheckCircle className="h-3 w-3 mr-1" />নিশ্চিত</Badge>;
+      case 'declined':
+        return <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />প্রত্যাখ্যান</Badge>;
+      default:
+        return <Badge variant="secondary"><Clock className="h-3 w-3 mr-1" />অপেক্ষমাণ</Badge>;
+    }
+  };
+
+  const getTotalStats = () => {
+    const allGuests = events.flatMap(e => e.guests);
+    return {
+      totalEvents: events.length,
+      totalGuests: allGuests.length,
+      confirmed: allGuests.filter(g => g.status === 'confirmed').length,
+      pending: allGuests.filter(g => g.status === 'pending').length
+    };
+  };
+
+  const stats = getTotalStats();
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Demo login credentials
+    if (loginForm.email === 'admin@event.com' && loginForm.password === 'admin123') {
+      setIsLoggedIn(true);
+      toast.success('সফলভাবে লগইন হয়েছে!');
+    } else {
+      toast.error('ভুল ইমেল বা পাসওয়ার্ড');
+    }
+  };
+
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    setLoginForm({ email: '', password: '' });
+    toast.success('লগআউট সফল হয়েছে');
+  };
+
+  // Login Page
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen relative overflow-hidden">
+        <Toaster />
+        
+        {/* Background Image */}
+        <div className="absolute inset-0">
+          <ImageWithFallback
+            src="https://images.unsplash.com/photo-1630283017802-785b7aff9aac?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBvZmZpY2UlMjB3b3Jrc3BhY2V8ZW58MXx8fHwxNzYyMjk5NTYyfDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral"
+            alt="Background"
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-br from-purple-900/80 via-blue-900/80 to-indigo-900/80"></div>
+        </div>
+
+        {/* Login Content */}
+        <div className="relative z-10 min-h-screen flex items-center justify-center px-4">
+          <div className="w-full max-w-md">
+            {/* Logo/Header */}
+            <div className="text-center mb-8">
+              <div className="inline-flex items-center justify-center w-20 h-20 bg-white/10 backdrop-blur-xl rounded-2xl mb-4 border border-white/20">
+                <Shield className="h-10 w-10 text-white" />
+              </div>
+              <h1 className="text-white mb-2">এডমিন লগইন</h1>
+              <p className="text-white/80 text-sm">ইভেন্ট ম্যানেজমেন্ট সিস্টেম</p>
+            </div>
+
+            {/* Login Card */}
+            <Card className="bg-white/10 backdrop-blur-xl border-white/20 shadow-2xl">
+              <CardHeader className="space-y-1">
+                <CardTitle className="text-white text-center">আপনার অ্যাকাউন্টে প্রবেশ করুন</CardTitle>
+                <CardDescription className="text-white/70 text-center">
+                  ড্যাশবোর্ড অ্যাক্সেস করতে লগইন করুন
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleLogin} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="email" className="text-white">ইমেল</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="admin@event.com"
+                      value={loginForm.email}
+                      onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
+                      required
+                      className="bg-white/10 border-white/20 text-white placeholder:text-white/50 focus:bg-white/20"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="password" className="text-white">পাসওয়ার্ড</Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={loginForm.password}
+                      onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
+                      required
+                      className="bg-white/10 border-white/20 text-white placeholder:text-white/50 focus:bg-white/20"
+                    />
+                  </div>
+                  <Button 
+                    type="submit" 
+                    className="w-full bg-white text-purple-900 hover:bg-white/90"
+                  >
+                    <Lock className="h-4 w-4 mr-2" />
+                    লগইন করুন
+                  </Button>
+                </form>
+
+                {/* Demo Credentials */}
+                <div className="mt-6 p-4 bg-white/5 rounded-lg border border-white/10">
+                  <p className="text-xs text-white/70 mb-2">ডেমো অ্যাকাউন্ট:</p>
+                  <p className="text-xs text-white/90">ইমেল: admin@event.com</p>
+                  <p className="text-xs text-white/90">পাসওয়ার্ড: admin123</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Footer */}
+            <p className="text-center text-white/60 text-sm mt-8">
+              © ২০২৫ ইভেন্ট ম্যানেজমেন্ট সিস্টেম
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Main Dashboard (after login)
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50">
+      <Toaster />
+      
+      {/* Header */}
+      <div className="bg-white border-b shadow-sm">
+        <div className="container mx-auto px-4 py-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="bg-gradient-to-br from-purple-500 to-blue-500 p-3 rounded-xl">
+                <Calendar className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-gray-900">ইভেন্ট ম্যানেজমেন্ট সিস্টেম</h1>
+                <p className="text-sm text-gray-600">অতিথি তালিকা এবং ইমেল নিশ্চিতকরণ</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Dialog open={isEventDialogOpen} onOpenChange={setIsEventDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button className="bg-gradient-to-r from-purple-500 to-blue-500">
+                    <Plus className="h-4 w-4 mr-2" />
+                    নতুন ইভেন্ট
+                  </Button>
+                </DialogTrigger>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>নতুন ইভেন্ট তৈরি করুন</DialogTitle>
+                  <DialogDescription>
+                    ইভেন্টের বিস্তারিত তথ্য দিন
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 mt-4">
+                  <div>
+                    <Label>ইভেন্টের নাম *</Label>
+                    <Input
+                      value={eventForm.name}
+                      onChange={(e) => setEventForm({ ...eventForm, name: e.target.value })}
+                      placeholder="যেমন: বার্ষিক সম্মেলন"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>তারিখ *</Label>
+                      <Input
+                        type="date"
+                        value={eventForm.date}
+                        onChange={(e) => setEventForm({ ...eventForm, date: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label>সময়</Label>
+                      <Input
+                        type="time"
+                        value={eventForm.time}
+                        onChange={(e) => setEventForm({ ...eventForm, time: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label>স্থান *</Label>
+                    <Input
+                      value={eventForm.location}
+                      onChange={(e) => setEventForm({ ...eventForm, location: e.target.value })}
+                      placeholder="যেমন: ঢাকা কনভেনশন সেন্টার"
+                    />
+                  </div>
+                  <div>
+                    <Label>বিবরণ</Label>
+                    <Textarea
+                      value={eventForm.description}
+                      onChange={(e) => setEventForm({ ...eventForm, description: e.target.value })}
+                      placeholder="ইভেন্ট সম্পর্কে বিস্তারিত লিখুন"
+                      rows={3}
+                    />
+                  </div>
+                  <Button onClick={handleAddEvent} className="w-full">
+                    ইভেন্ট তৈরি করুন
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+            <Button 
+              variant="outline" 
+              onClick={handleLogout}
+              className="border-red-200 text-red-600 hover:bg-red-50"
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              লগআউট
+            </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="container mx-auto px-4 py-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">মোট ইভেন্ট</p>
+                  <p className="text-gray-900">{stats.totalEvents}</p>
+                </div>
+                <div className="bg-purple-100 p-3 rounded-lg">
+                  <Calendar className="h-5 w-5 text-purple-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">মোট অতিথি</p>
+                  <p className="text-gray-900">{stats.totalGuests}</p>
+                </div>
+                <div className="bg-blue-100 p-3 rounded-lg">
+                  <Users className="h-5 w-5 text-blue-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">নিশ্চিত</p>
+                  <p className="text-gray-900">{stats.confirmed}</p>
+                </div>
+                <div className="bg-green-100 p-3 rounded-lg">
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">অপেক্ষমাণ</p>
+                  <p className="text-gray-900">{stats.pending}</p>
+                </div>
+                <div className="bg-orange-100 p-3 rounded-lg">
+                  <Clock className="h-5 w-5 text-orange-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Events List */}
+          <Card className="lg:col-span-1">
+            <CardHeader>
+              <CardTitle>ইভেন্ট তালিকা</CardTitle>
+              <CardDescription>আপনার সব ইভেন্ট দেখুন</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {events.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-8">কোনো ইভেন্ট নেই</p>
+              ) : (
+                events.map(event => (
+                  <div
+                    key={event.id}
+                    className={`p-4 border rounded-lg cursor-pointer transition-all ${
+                      selectedEvent === event.id 
+                        ? 'bg-purple-50 border-purple-300' 
+                        : 'hover:bg-gray-50'
+                    }`}
+                    onClick={() => setSelectedEvent(event.id)}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <p className="text-gray-900">{event.name}</p>
+                        <div className="flex items-center gap-2 mt-2 text-sm text-gray-600">
+                          <Calendar className="h-3 w-3" />
+                          {new Date(event.date).toLocaleDateString('bn-BD')}
+                        </div>
+                        <div className="flex items-center gap-2 mt-1 text-sm text-gray-600">
+                          <Users className="h-3 w-3" />
+                          {event.guests.length} জন অতিথি
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteEvent(event.id);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Guest Management */}
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>অতিথি তালিকা</CardTitle>
+                  <CardDescription>
+                    {currentEvent ? currentEvent.name : 'কোনো ইভেন্ট নির্বাচিত নয়'}
+                  </CardDescription>
+                </div>
+                {currentEvent && (
+                  <Dialog open={isGuestDialogOpen} onOpenChange={setIsGuestDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button>
+                        <Plus className="h-4 w-4 mr-2" />
+                        অতিথি যোগ করুন
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>নতুন অতিথি যোগ করুন</DialogTitle>
+                        <DialogDescription>
+                          অতিথি যোগ করার সাথে সাথে স্বয়ংক্রিয়ভাবে নিশ্চিতকরণ ইমেল পাঠানো হবে
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 mt-4">
+                        <div>
+                          <Label>নাম *</Label>
+                          <Input
+                            value={guestForm.name}
+                            onChange={(e) => setGuestForm({ ...guestForm, name: e.target.value })}
+                            placeholder="অতিথির নাম"
+                          />
+                        </div>
+                        <div>
+                          <Label>ইমেল *</Label>
+                          <Input
+                            type="email"
+                            value={guestForm.email}
+                            onChange={(e) => setGuestForm({ ...guestForm, email: e.target.value })}
+                            placeholder="email@example.com"
+                          />
+                        </div>
+                        <Button onClick={handleAddGuest} className="w-full">
+                          <Mail className="h-4 w-4 mr-2" />
+                          যোগ করুন এবং ইমেল পাঠান
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              {!currentEvent ? (
+                <p className="text-sm text-gray-500 text-center py-8">
+                  অতিথি দেখতে একটি ইভেন্ট নির্বাচন করুন
+                </p>
+              ) : currentEvent.guests.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-8">
+                  এই ইভেন্টে কোনো অতিথি নেই
+                </p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>নাম</TableHead>
+                      <TableHead>ইমেল</TableHead>
+                      <TableHead>স্ট্যাটাস</TableHead>
+                      <TableHead className="text-right">অ্যাকশন</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {currentEvent.guests.map(guest => (
+                      <TableRow key={guest.id}>
+                        <TableCell>{guest.name}</TableCell>
+                        <TableCell className="text-gray-600">{guest.email}</TableCell>
+                        <TableCell>
+                          <select
+                            value={guest.status}
+                            onChange={(e) => handleUpdateGuestStatus(guest.id, e.target.value as Guest['status'])}
+                            className="text-sm border rounded px-2 py-1"
+                          >
+                            <option value="pending">অপেক্ষমাণ</option>
+                            <option value="confirmed">নিশ্চিত</option>
+                            <option value="declined">প্রত্যাখ্যান</option>
+                          </select>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleResendEmail(guest)}
+                            >
+                              <Send className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setPreviewGuest(guest);
+                                setEmailPreviewOpen(true);
+                              }}
+                            >
+                              <Mail className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteGuest(guest.id)}
+                            >
+                              <Trash2 className="h-4 w-4 text-red-500" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Email Preview Dialog */}
+      <Dialog open={emailPreviewOpen} onOpenChange={setEmailPreviewOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>ইমেল প্রিভিউ</DialogTitle>
+            <DialogDescription>
+              অতিথিকে পাঠানো নিশ্চিতকরণ ইমেল
+            </DialogDescription>
+          </DialogHeader>
+          {previewGuest && currentEvent && (
+            <div className="mt-4 border rounded-lg p-6 bg-gray-50">
+              <div className="bg-white p-6 rounded-lg shadow-sm">
+                <div className="border-b pb-4 mb-4">
+                  <h2 className="text-gray-900">আপনাকে আমন্ত্রণ জানানো হয়েছে!</h2>
+                </div>
+                <p className="text-gray-700 mb-4">প্রিয় {previewGuest.name},</p>
+                <p className="text-gray-700 mb-4">
+                  আপনাকে <strong>{currentEvent.name}</strong> অনুষ্ঠানে আমন্ত্রণ জানাচ্ছি।
+                </p>
+                <div className="bg-purple-50 p-4 rounded-lg mb-4">
+                  <p className="text-gray-700"><strong>তারিখ:</strong> {new Date(currentEvent.date).toLocaleDateString('bn-BD')}</p>
+                  {currentEvent.time && (
+                    <p className="text-gray-700"><strong>সময়:</strong> {currentEvent.time}</p>
+                  )}
+                  <p className="text-gray-700"><strong>স্থান:</strong> {currentEvent.location}</p>
+                </div>
+                {currentEvent.description && (
+                  <p className="text-gray-700 mb-4">{currentEvent.description}</p>
+                )}
+                <p className="text-gray-700 mb-4">
+                  অনুগ্রহ করে আপনার উপস্থিতি নিশ্চিত করুন।
+                </p>
+                <p className="text-gray-700">ধন্যবাদ,<br/>ইভেন্ট টিম</p>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+export default App;
